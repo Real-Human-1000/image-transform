@@ -3,6 +3,7 @@ from PIL import Image, ImageFilter
 import os
 import shutil
 
+# ffmpeg -i video.mp4 -r 10 frame%04d.jpg -hide_banner
 # ffmpeg -r 10 -i result_%04.jpg -vcodec mpeg4 result.mp4
 
 badapple_frames = [(name, imagehash.phash(Image.open("badapple_frames\\" + name).filter(ImageFilter.FIND_EDGES))) for name in os.listdir("badapple_frames")]

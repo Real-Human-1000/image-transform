@@ -1,9 +1,10 @@
 from PIL import Image
 import os
 import numpy as np
+from scipy.optimize import nnls
 
 target_img = Image.open("single_images\\ba.jpg").resize((48,36))
-target_arr_color = np.array(target_img)
+target_arr_color = np.array(target_img).astype(float)
 # target_arr = 0.299 * target_arr_color[:, :, 0] + 0.587 * target_arr_color[:, :, 1] + 0.114 * target_arr_color[:, :, 2]
 # 0.229, 0.587, and 0.114 are used to get a more accurate depiction of luminosity
 # according to what the human eye is sensitive to
@@ -12,7 +13,7 @@ print(target_arr.shape)
 
 all_material_imgs = os.listdir("other_frames")
 material_imgs = []
-N = 200  # Number of frames with which to build
+N = 300  # Number of frames with which to build
 
 """
    material images x coefficients = target
@@ -25,7 +26,7 @@ find coef vector using np.linalg.solve (or np.linalg.lstsq)
 
 for i in range(N):
     img = Image.open("other_frames\\" + all_material_imgs[int(i / N * len(all_material_imgs))]).resize((48,36))
-    img_array_color = np.array(img)
+    img_array_color = np.array(img).astype(float)
     #img_array = 0.299 * img_array_color[:,:,0] + 0.587 * img_array_color[:,:,1] + 0.114 * img_array_color[:,:,2]
     material_imgs.append((all_material_imgs[int(i / N * len(all_material_imgs))], img_array_color))
 
@@ -37,20 +38,31 @@ for a in range(1,N):
 
 
 # Solve for the coefficients
-# print(imgs_arr.shape)
-# print(target_arr.shape)
 x, residuals, rank, s = np.linalg.lstsq(imgs_arr, target_arr)
-print(x)
+# x, rnorm = nnls(imgs_arr, target_arr.reshape(target_arr.size,))  # positive only
+x[abs(x) < 1e-1] = 0
+print(np.argwhere(x).shape[0])
 
 
 # Build nice image
-target_img = Image.open("single_images\\ba.jpg")
-comp_arr = np.zeros(np.array(target_img).shape)
-for const_idx in range(len(list(x))):
-    this_img = np.array(Image.open("other_frames\\" + material_imgs[const_idx][0]))
-    const = list(x)[const_idx]
-    comp_arr += const * this_img
+smallest = np.max(abs(x))
+for layer in range(np.argwhere(x).shape[0]):
+    coefs = np.copy(x)
+    coefs[abs(coefs) < smallest] = 0
+    print(f"Layer {layer}: {np.argwhere(coefs).shape[0]}")
 
-comp_arr = np.clip(comp_arr, 0, 255)
-final_img = Image.fromarray(np.uint8(comp_arr))
-final_img.save("result_frames\\solve.jpg")
+    target_img = Image.open("single_images\\ba.jpg")
+    comp_arr = np.zeros(np.array(target_img).shape)
+    for const_idx in range(len(list(coefs))):
+        this_img = np.array(Image.open("other_frames\\" + material_imgs[const_idx][0]))
+        const = list(coefs)[const_idx]
+        comp_arr += const * this_img
+
+    comp_arr = comp_arr + (np.mean(target_arr) - np.mean(comp_arr))
+    comp_arr = np.clip(comp_arr, 0, 255)
+    final_img = Image.fromarray(np.uint8(comp_arr))
+    final_img.save(f"result_frames\\{N}_layer{layer}.jpg")
+
+    temp = np.copy(x)
+    temp[abs(temp) >= abs(smallest)] = 0
+    smallest = np.max(abs(temp))
