@@ -3,13 +3,6 @@ import os
 import numpy as np
 from scipy.optimize import nnls
 
-target_img = Image.open("single_images\\ba.jpg").resize((48,36))
-target_arr_color = np.array(target_img).astype(float)
-# target_arr = 0.299 * target_arr_color[:, :, 0] + 0.587 * target_arr_color[:, :, 1] + 0.114 * target_arr_color[:, :, 2]
-# 0.229, 0.587, and 0.114 are used to get a more accurate depiction of luminosity
-# according to what the human eye is sensitive to
-target_arr = target_arr_color.reshape((target_arr_color.size, 1))  # vectorize
-print(target_arr.shape)
 
 all_material_imgs = os.listdir("other_frames")
 material_imgs = []
@@ -32,37 +25,61 @@ for i in range(N):
 
 
 # Build a single matrix of all images
-imgs_arr = material_imgs[0][1].reshape((target_arr_color.size, 1))
+imgs_arr = material_imgs[0][1].reshape((material_imgs[0][1].size, 1))
 for a in range(1,N):
-    imgs_arr = np.hstack((imgs_arr, material_imgs[a][1].reshape((target_arr_color.size, 1))))
+    imgs_arr = np.hstack((imgs_arr, material_imgs[a][1].reshape((material_imgs[0][1].size, 1))))
 
 
-# Solve for the coefficients
-x, residuals, rank, s = np.linalg.lstsq(imgs_arr, target_arr)
-# x, rnorm = nnls(imgs_arr, target_arr.reshape(target_arr.size,))  # positive only
-x[abs(x) < 1e-1] = 0
-print(np.argwhere(x).shape[0])
+for target_name in os.listdir("badapple_frames"):
+    # Get target image
+    target_img = Image.open("badapple_frames\\" + target_name).resize((48, 36))
+    target_arr_color = np.array(target_img).astype(float)
+    # target_arr = 0.299 * target_arr_color[:, :, 0] + 0.587 * target_arr_color[:, :, 1] + 0.114 * target_arr_color[:, :, 2]
+    # 0.229, 0.587, and 0.114 are used to get a more accurate depiction of luminosity
+    # according to what the human eye is sensitive to
+    target_arr = target_arr_color.reshape((target_arr_color.size, 1))  # vectorize
 
 
-# Build nice image
-smallest = np.max(abs(x))
-for layer in range(np.argwhere(x).shape[0]):
-    coefs = np.copy(x)
-    coefs[abs(coefs) < smallest] = 0
-    print(f"Layer {layer}: {np.argwhere(coefs).shape[0]}")
+    # Solve for the coefficients
+    x, residuals, rank, s = np.linalg.lstsq(imgs_arr, target_arr)
+    # x, rnorm = nnls(imgs_arr, target_arr.reshape(target_arr.size,))  # positive only
+    x[abs(x) < 2e-1] = 0
+    print(np.argwhere(x).shape[0])
 
-    target_img = Image.open("single_images\\ba.jpg")
+    # Build nice image
+    target_img = Image.open("badapple_frames\\" + target_name)
     comp_arr = np.zeros(np.array(target_img).shape)
-    for const_idx in range(len(list(coefs))):
-        this_img = np.array(Image.open("other_frames\\" + material_imgs[const_idx][0]))
-        const = list(coefs)[const_idx]
+    for coef_idx in range(len(list(x))):
+        this_img = np.array(Image.open("other_frames\\" + material_imgs[coef_idx][0]))
+        const = list(x)[coef_idx]
         comp_arr += const * this_img
 
     comp_arr = comp_arr + (np.mean(target_arr) - np.mean(comp_arr))
     comp_arr = np.clip(comp_arr, 0, 255)
     final_img = Image.fromarray(np.uint8(comp_arr))
-    final_img.save(f"result_frames\\{N}_layer{layer}.jpg")
+    final_img.save(f"result_frames\\result_{(len(os.listdir('result_frames'))+1):04d}.jpg")
 
-    temp = np.copy(x)
-    temp[abs(temp) >= abs(smallest)] = 0
-    smallest = np.max(abs(temp))
+
+# Build layer animation
+# smallest = np.max(abs(x))
+# for layer in range(np.argwhere(x).shape[0]):
+#     coefs = np.copy(x)
+#     coefs[abs(coefs) < smallest] = 0
+#     print(f"Layer {layer}: {np.argwhere(coefs).shape[0]}")
+#
+#     target_img = Image.open("single_images\\ba.jpg")
+#     comp_arr = np.zeros(np.array(target_img).shape)
+#     for const_idx in range(len(list(coefs))):
+#         this_img = np.array(Image.open("other_frames\\" + material_imgs[const_idx][0]))
+#         const = list(coefs)[const_idx]
+#         comp_arr += const * this_img
+#
+#     comp_arr = comp_arr + (np.mean(target_arr) - np.mean(comp_arr))
+#     comp_arr = np.clip(comp_arr, 0, 255)
+#     final_img = Image.fromarray(np.uint8(comp_arr))
+#     for copies in range(int(1+19/((layer+1)**0.75))):
+#         final_img.save(f"result_frames\\result_{(len(os.listdir('result_frames'))+1):04d}.jpg")
+#
+#     temp = np.copy(x)
+#     temp[abs(temp) >= abs(smallest)] = 0
+#     smallest = np.max(abs(temp))

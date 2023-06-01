@@ -96,7 +96,7 @@ print(np.argwhere(x).shape[0])
 # final_img = Image.fromarray(np.uint8(comp_arr))
 # final_img.save(f"result_frames\\lasso_{N}.jpg")
 
-# Build nice images
+# Build layers animation
 smallest = np.max(abs(x))
 for layer in range(np.argwhere(x).shape[0]):
     coefs = np.copy(x)
